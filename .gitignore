@@ -1,32 +1,41 @@
-# Prerequisites
-*.d
+resources/
+build/
+vs_build/
+lib/
+.vs/
+.vscode/
+bin/
+_deps/
 
-# Compiled Object files
-*.slo
-*.lo
-*.o
+*Config.h
+
 *.obj
+*.uscene
 
-# Precompiled Headers
-*.gch
-*.pch
+*.bmp
+*.png
+*.jpg
+*.gif
+*.mp4
+*.pdf
 
-# Compiled Dynamic libraries
-*.so
-*.dylib
+*.html
+
+*.rar
+*.zip
+
+*.doc
+*.docx
+*.ppt
+*.pptx
+
+*.filters
+*.vcxproj
+*.log
+*.sln
+*.user
 *.dll
-
-# Fortran module files
-*.mod
-*.smod
-
-# Compiled Static libraries
-*.lai
-*.la
-*.a
 *.lib
-
-# Executables
 *.exe
-*.out
-*.app
+*.ilk
+*.pdb
