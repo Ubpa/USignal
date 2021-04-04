@@ -4,12 +4,17 @@
 
 #include <USmallFlat/small_flat_map.hpp>
 
+#include <UTemplate/Func.hpp>
+
 #include <functional>
+#include <variant>
 
 namespace Ubpa {
 	template<typename... Args>
 	class Signal {
+		using FuncSig = void(void*, Args...);
 	public:
+		// you can only use the result to disconnect with this
 		template<typename Slot>
 		requires std::negation_v<std::is_pointer<std::remove_cvref_t<Slot>>>
 		Connection Connect(Slot&& slot);
@@ -17,58 +22,48 @@ namespace Ubpa {
 		template<typename CallableObject>
 		Connection Connect(CallableObject* ptr);
 
-		template<auto FuncPtr>
-		requires std::is_function_v<std::remove_pointer_t<decltype(FuncPtr)>>
+		template<auto funcptr>
+		requires std::is_function_v<std::remove_pointer_t<decltype(funcptr)>>
 		Connection Connect();
 
-		template<auto MemFuncPtr, typename T>
-		requires std::is_member_function_pointer_v<decltype(MemFuncPtr)>
+		template<auto memslot, typename T>
 		Connection Connect(T* obj);
+		template<auto memslot, typename T>
+		Connection Connect(const T* obj);
 
-		template<typename Func, typename T>
-		Connection Connect(T* obj, Func(T::*func));
+		template<typename MemSlot, typename T>
+		Connection Connect(MemSlot&& memslot, T* obj);
+		template<typename MemSlot, typename T>
+		Connection Connect(MemSlot&& memslot, const T* obj);
 
 		void Emit(Args... args) const;
 
 		void Disconnect(const Connection& connection);
 
 		template<typename T>
-		void Disconnect(T* ptr);
+		void Disconnect(const T* ptr);
 
-		template<auto FuncPtr>
-		requires std::is_function_v<std::remove_pointer_t<decltype(FuncPtr)>>
+		template<auto funcptr>
+		requires std::is_function_v<std::remove_pointer_t<decltype(funcptr)>>
 		void Disconnect();
 
-		template<auto MemFuncPtr, typename T>
-		requires std::is_member_function_pointer_v<decltype(MemFuncPtr)>
-		void Disconnect(T* obj);
+		template<auto memfuncptr>
+		void Disconnect(const member_pointer_traits_object<decltype(memfuncptr)>* obj);
 
-		template<typename Func, typename T>
-		void Disconnect(T* obj, Func(T::* func));
+		template<typename MemFuncPtr>
+		void Disconnect(MemFuncPtr memfuncptr, const member_pointer_traits_object<MemFuncPtr>* obj);
+
+		template<typename T>
+		void Move(const T* dst, const T* src);
 
 		void Clear() noexcept;
 
 	private:
-		size_t id_second{ 1 };
-
-		struct ConnectionLess {
-			using is_transparent = int;
-			constexpr bool operator()(const Connection& lhs, const std::size_t& rhs) const noexcept {
-				return lhs.id.first == 0 && lhs.id.second < rhs;
-			}
-			constexpr bool operator()(const std::size_t& lhs, const Connection& rhs) const noexcept {
-				return rhs.id.first > 0 || (rhs.id.first == 0 && lhs < rhs.id.second);
-			}
-			constexpr bool operator()(const Connection& lhs, const Connection& rhs) const noexcept {
-				return lhs.id.first < rhs.id.first
-					|| (lhs.id.first == rhs.id.first && lhs.id.second < rhs.id.second);
-			}
-		};
-
+		size_t inner_id{ 0 };
 		template<typename Slot>
-		Connection Connect(Connection::ID id, Slot&& slot);
+		void Connect(const Connection& id, Slot&& slot);
 
-		small_flat_map<Connection, std::function<void(Args...)>, 16, ConnectionLess> slots;
+		small_flat_map<Connection, std::function<FuncSig>> slots;
 	};
 }
 

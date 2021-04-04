@@ -99,8 +99,8 @@ TEST(Signal, memfunc) {
 	};
 	C c;
 	sig.Connect<&C::slot_0>(&c);
-	sig.Connect(&c, &C::slot_1);
-	sig.Connect<void()>(&c, &C::slot_overload);
+	sig.Connect(&C::slot_1, &c);
+	sig.Connect(MemFuncOf<C, void()>::get(&C::slot_overload), &c);
 	sig.Connect<MemFuncOf<C, void(int, float)>::get(&C::slot_overload)>(&c);
 
 	sig.Emit(0, 0.f);
@@ -169,4 +169,103 @@ TEST(Signal, disconnect_pro) {
 	sig.Emit(0, 0.f);
 	EXPECT_EQ(f.cnt_call_op, 2);
 	EXPECT_EQ(f.cnt_call_f, 1);
+}
+
+TEST(Signal, derive) {
+	Signal<> sig;
+	
+	struct Base0 {
+		int data{ 0 };
+		void f() {
+			EXPECT_EQ(data, 0);
+		}
+	};
+	struct Base1 {
+		int data{ 1 };
+		void f() {
+			EXPECT_EQ(data, 1);
+		}
+	};
+	struct Derived : Base0, Base1 {};
+	Derived d;
+	sig.Connect<&Base0::f>(&d);
+	sig.Connect<&Base1::f>(&d);
+	sig.Emit();
+}
+
+TEST(Signal, two_api) {
+	Signal<> sig;
+
+	struct A {
+		int data = 0;
+		void f(){
+			data = 1;
+		}
+	};
+	A a;
+	sig.Connect<&A::f>(&a);
+	sig.Disconnect(&A::f, &a);
+	sig.Emit();
+	EXPECT_EQ(a.data, 0);
+}
+
+TEST(Signal, const) {
+	Signal<> sig;
+	struct A {
+		bool& called;
+		void f() const {
+			called = true;
+		}
+	};
+	bool called = false;
+	const A a{ called };
+	sig.Connect<&A::f>(&a);
+	sig.Emit();
+	EXPECT_TRUE(called);
+}
+
+TEST(Signal, memslot) {
+	Signal<> sig;
+	struct A {
+		bool called = false;
+	};
+	A a;
+	sig.Connect([](A& a) {
+		a.called = true;
+	}, &a);
+	sig.Emit();
+	EXPECT_TRUE(a.called);
+}
+
+TEST(Signal, move) {
+	Signal<> sig;
+	struct A {
+		bool called = false;
+		void f() { called = true; }
+	};
+	int cnt = 0;
+	struct CopyCnt {
+		int& cnt;
+		CopyCnt(int& cnt) :cnt{ cnt } {}
+		CopyCnt(const CopyCnt& other) : cnt{ other.cnt } { cnt++; }
+		CopyCnt(CopyCnt&& other) noexcept : cnt{ other.cnt } {}
+		CopyCnt& operator=(const CopyCnt& other) {
+			cnt = other.cnt;
+			cnt++;
+			return *this;
+		}
+		CopyCnt& operator=(CopyCnt&& other) noexcept {
+			cnt = other.cnt;
+			return *this;
+		}
+	};
+	A a0, a1;
+	sig.Connect([copycnt = CopyCnt{ cnt }](A& a){
+		a.called = true;
+	}, &a0);
+	sig.Move(&a1, &a0);
+	sig.Emit();
+	EXPECT_FALSE(a0.called);
+	EXPECT_TRUE(a1.called);
+	EXPECT_EQ(cnt, 0);
 }
