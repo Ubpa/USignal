@@ -5,11 +5,11 @@
 using namespace Ubpa;
 
 TEST(Signal, ctor) {
-	Signal<int, float> sig;
+	Signal<void(int, float)> sig;
 }
 
 TEST(Signal, basic) {
-	Signal<int, float> sig;
+	Signal<void(int, float)> sig;
 	constexpr int arg_0 = 1;
 	constexpr float arg_1 = 2.f;
 	bool called = false;
@@ -23,7 +23,7 @@ TEST(Signal, basic) {
 }
 
 TEST(Signal, compatible) {
-	Signal<int, float> sig;
+	Signal<void(int, float)> sig;
 	constexpr int arg_0 = 1;
 	constexpr float arg_1 = 2.f;
 	sig.Connect([](const int& a, const float& b) {
@@ -37,7 +37,7 @@ TEST(Signal, compatible) {
 }
 
 TEST(Signal, zero_arg) {
-	Signal<> sig;
+	Signal<void()> sig;
 	bool called = false;
 	sig.Connect([&called] {called = true; });
 	sig.Emit();
@@ -45,7 +45,7 @@ TEST(Signal, zero_arg) {
 }
 
 TEST(Signal, return) {
-	Signal<> sig;
+	Signal<void()> sig;
 	bool called = false;
 	sig.Connect([&called] () -> int {
 		called = true;
@@ -56,7 +56,7 @@ TEST(Signal, return) {
 }
 
 TEST(Signal, disconnct) {
-	Signal<int, float> sig;
+	Signal<void(int, float)> sig;
 	bool called = false;
 	Connection connection = sig.Connect([&called](int, float) -> int {
 		called = true;
@@ -68,7 +68,7 @@ TEST(Signal, disconnct) {
 }
 
 TEST(Signal, clear) {
-	Signal<int, float> sig;
+	Signal<void(int, float)> sig;
 	bool called_0 = false;
 	bool called_1 = false;
 	sig.Connect([&called_0](int, float) -> int {
@@ -86,7 +86,7 @@ TEST(Signal, clear) {
 }
 
 TEST(Signal, memfunc) {
-	Signal<int, float> sig;
+	Signal<void(int, float)> sig;
 	struct C {
 		void slot_0() { called_0 = true; }
 		void slot_1() { called_1 = true; }
@@ -111,7 +111,7 @@ TEST(Signal, memfunc) {
 }
 
 TEST(Signal, callable_obj) {
-	Signal<int, float> sig;
+	Signal<void(int, float)> sig;
 	struct Func {
 		bool called = false;
 		void operator()(int, float) {
@@ -125,7 +125,7 @@ TEST(Signal, callable_obj) {
 }
 
 TEST(Signal, disconnect_obj) {
-	Signal<int, float> sig;
+	Signal<void(int, float)> sig;
 	struct Func {
 		int cnt_call_op = 0;
 		int cnt_call_f = 0;
@@ -148,7 +148,7 @@ TEST(Signal, disconnect_obj) {
 }
 
 TEST(Signal, disconnect_pro) {
-	Signal<int, float> sig;
+	Signal<void(int, float)> sig;
 	struct Func {
 		int cnt_call_op = 0;
 		int cnt_call_f = 0;
@@ -172,7 +172,7 @@ TEST(Signal, disconnect_pro) {
 }
 
 TEST(Signal, derive) {
-	Signal<> sig;
+	Signal<void()> sig;
 	
 	struct Base0 {
 		int data{ 0 };
@@ -194,7 +194,7 @@ TEST(Signal, derive) {
 }
 
 TEST(Signal, two_api) {
-	Signal<> sig;
+	Signal<void()> sig;
 
 	struct A {
 		int data = 0;
@@ -210,7 +210,7 @@ TEST(Signal, two_api) {
 }
 
 TEST(Signal, const) {
-	Signal<> sig;
+	Signal<void()> sig;
 	struct A {
 		bool& called;
 		void f() const {
@@ -225,7 +225,7 @@ TEST(Signal, const) {
 }
 
 TEST(Signal, memslot) {
-	Signal<> sig;
+	Signal<void()> sig;
 	struct A {
 		bool called = false;
 	};
@@ -238,7 +238,7 @@ TEST(Signal, memslot) {
 }
 
 TEST(Signal, move) {
-	Signal<> sig;
+	Signal<void()> sig;
 	struct A {
 		bool called = false;
 		void f() { called = true; }
@@ -268,4 +268,20 @@ TEST(Signal, move) {
 	EXPECT_FALSE(a0.called);
 	EXPECT_TRUE(a1.called);
 	EXPECT_EQ(cnt, 0);
+}
+
+TEST(Signal, acc) {
+	Signal<int()> getints;
+	getints.Connect([]() {return 1; });
+	getints.Connect([]() {return 2; });
+	getints.Connect([]() {return 3; });
+	struct Acc {
+		int sum = 0;
+		void operator()(int v) {
+			sum += v;
+		}
+	};
+	Acc acc;
+	getints.Emit(acc);
+	EXPECT_EQ(acc.sum, 6);
 }

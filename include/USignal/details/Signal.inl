@@ -1,9 +1,12 @@
 #pragma once
 
 namespace Ubpa::details {
+	template<typename Func>
+	struct SlotExpand;
+
 	// to Ret(void*, Args...)
-	template<typename... Args>
-	struct SlotExpand {
+	template<typename Ret, typename... Args>
+	struct SlotExpand<Ret(Args...)> {
 		template<auto func>
 		static auto get() noexcept {
 			constexpr std::size_t N = Length_v<typename FuncTraits<decltype(func)>::ArgList>;
@@ -53,11 +56,14 @@ namespace Ubpa::details {
 			using Func = decltype(func);
 			using FromArgList = typename FuncTraits<Func>::ArgList;
 			using ToArgList = TypeList<Args...>;
-			return [](void*, Args... args) mutable {
+			return [](void*, Args... args) mutable -> Ret {
 				auto argsT = std::forward_as_tuple(std::forward<Args>(args)...);
 				static_assert(details::CheckCompatibleArguments<ToArgList, FromArgList>::value,
 					"from and to arguments are not compatible.");
-				func(std::get<Ns>(argsT)...);
+				if constexpr (std::is_void_v<Ret>)
+					func(std::get<Ns>(argsT)...);
+				else
+					return func(std::get<Ns>(argsT)...);
 			};
 		}
 
@@ -65,11 +71,14 @@ namespace Ubpa::details {
 		static auto get(Func&& func, std::index_sequence<Ns...>) {
 			using FromArgList = typename FuncTraits<Func>::ArgList;
 			using ToArgList = TypeList<Args...>;
-			return [func = std::forward<Func>(func)](void*, Args... args) mutable {
+			return [func = std::forward<Func>(func)](void*, Args... args) mutable -> Ret {
 				auto argsT = std::forward_as_tuple(std::forward<Args>(args)...);
 				static_assert(details::CheckCompatibleArguments<ToArgList, FromArgList>::value,
 					"from and to arguments are not compatible.");
-				func(std::forward<At_t<FromArgList, Ns>>(std::get<Ns>(argsT))...);
+				if constexpr (std::is_void_v<Ret>)
+					func(std::forward<At_t<FromArgList, Ns>>(std::get<Ns>(argsT))...);
+				else
+					return func(std::forward<At_t<FromArgList, Ns>>(std::get<Ns>(argsT))...);
 			};
 		}
 
@@ -79,11 +88,14 @@ namespace Ubpa::details {
 			using FromArgList = typename FuncTraits<Func>::ArgList;
 			using Object = typename FuncTraits<Func>::Object;
 			using ToArgList = TypeList<Args...>;
-			return [](void* obj, Args... args) mutable {
+			return [](void* obj, Args... args) mutable -> Ret {
 				auto argsT = std::forward_as_tuple(std::forward<Args>(args)...);
 				static_assert(details::CheckCompatibleArguments<ToArgList, FromArgList>::value,
 					"from and to arguments are not compatible.");
-				(reinterpret_cast<Object*>(obj)->*func)(std::get<Ns>(argsT)...);
+				if constexpr (std::is_void_v<Ret>)
+					(reinterpret_cast<Object*>(obj)->*func)(std::get<Ns>(argsT)...);
+				else
+					return (reinterpret_cast<Object*>(obj)->*func)(std::get<Ns>(argsT)...);
 			};
 		}
 
@@ -94,16 +106,28 @@ namespace Ubpa::details {
 			using Object = Front_t<FromArgList>;
 			using FromTailArgList = PopFront_t<typename FuncTraits<Func>::ArgList>;
 			using ToArgList = TypeList<Args...>;
-			return [](void* obj, Args... args) mutable {
+			return [](void* obj, Args... args) mutable -> Ret {
 				auto argsT = std::forward_as_tuple(std::forward<Args>(args)...);
 				static_assert(details::CheckCompatibleArguments<ToArgList, FromTailArgList>::value,
 					"from and to arguments are not compatible.");
-				if constexpr (std::is_reference_v<Object>)
-					func(*reinterpret_cast<std::add_pointer_t<Object>>(obj), std::get<Ns>(argsT)...);
-				else if constexpr (std::is_pointer_v<Object>)
-					func(reinterpret_cast<Object>(obj), std::get<Ns>(argsT)...);
-				else
-					static_assert(always_false<Func>);
+				if constexpr (std::is_void_v<Ret>) {
+					if constexpr (std::is_reference_v<Object>)
+						func(*reinterpret_cast<std::add_pointer_t<Object>>(obj), std::get<Ns>(argsT)...);
+					else if constexpr (std::is_pointer_v<Object>)
+						func(reinterpret_cast<Object>(obj), std::get<Ns>(argsT)...);
+					else
+						static_assert(always_false<Func>);
+				}
+				else {
+					if constexpr (std::is_reference_v<Object>)
+						return func(*reinterpret_cast<std::add_pointer_t<Object>>(obj), std::get<Ns>(argsT)...);
+					else if constexpr (std::is_pointer_v<Object>)
+						return func(reinterpret_cast<Object>(obj), std::get<Ns>(argsT)...);
+					else {
+						static_assert(always_false<Func>);
+						return Ret();
+					}
+				}
 			};
 		}
 
@@ -112,11 +136,14 @@ namespace Ubpa::details {
 			using FromArgList = typename FuncTraits<Func>::ArgList;
 			using Object = typename FuncTraits<Func>::Object;
 			using ToArgList = TypeList<Args...>;
-			return [func = std::forward<Func>(func)](void* obj, Args... args) mutable {
+			return [func = std::forward<Func>(func)](void* obj, Args... args) mutable -> Ret {
 				auto argsT = std::forward_as_tuple(std::forward<Args>(args)...);
 				static_assert(details::CheckCompatibleArguments<ToArgList, FromArgList>::value,
 					"from and to arguments are not compatible.");
-				(reinterpret_cast<Object*>(obj)->*func)(std::get<Ns>(argsT)...);
+				if constexpr (std::is_void_v<Ret>)
+					(reinterpret_cast<Object*>(obj)->*func)(std::get<Ns>(argsT)...);
+				else
+					return (reinterpret_cast<Object*>(obj)->*func)(std::get<Ns>(argsT)...);
 			};
 		}
 
@@ -126,64 +153,77 @@ namespace Ubpa::details {
 			using Object = Front_t<FromArgList>;
 			using FromTailArgList = PopFront_t<typename FuncTraits<Func>::ArgList>;
 			using ToArgList = TypeList<Args...>;
-			return [func = std::forward<Func>(func)](void* obj, Args... args) mutable {
+			return [func = std::forward<Func>(func)](void* obj, Args... args) mutable -> Ret {
 				auto argsT = std::forward_as_tuple(std::forward<Args>(args)...);
 				static_assert(details::CheckCompatibleArguments<ToArgList, FromTailArgList>::value,
 					"from and to arguments are not compatible.");
-				if constexpr (std::is_reference_v<Object>)
-					func(*reinterpret_cast<std::add_pointer_t<Object>>(obj), std::get<Ns>(argsT)...);
-				else if constexpr (std::is_pointer_v<Object>)
-					func(reinterpret_cast<Object>(obj), std::get<Ns>(argsT)...);
-				else
-					static_assert(always_false<Func>);
+
+				if constexpr (std::is_void_v<Ret>) {
+					if constexpr (std::is_reference_v<Object>)
+						func(*reinterpret_cast<std::add_pointer_t<Object>>(obj), std::get<Ns>(argsT)...);
+					else if constexpr (std::is_pointer_v<Object>)
+						func(reinterpret_cast<Object>(obj), std::get<Ns>(argsT)...);
+					else
+						static_assert(always_false<Func>);
+				}
+				else {
+					if constexpr (std::is_reference_v<Object>)
+						return func(*reinterpret_cast<std::add_pointer_t<Object>>(obj), std::get<Ns>(argsT)...);
+					else if constexpr (std::is_pointer_v<Object>)
+						return func(reinterpret_cast<Object>(obj), std::get<Ns>(argsT)...);
+					else {
+						static_assert(always_false<Func>);
+						return Ret();
+					}
+				}
 			};
 		}
 	};
 }
 
 namespace Ubpa {
-	template<typename... Args>
+	template<typename Ret, typename... Args>
 	template<typename Slot>
-	void Signal<Args...>::Connect(const Connection& connection, Slot&& slot) {
+	void Signal<Ret(Args...)>::Connect(const Connection& connection, Slot&& slot) {
 		if constexpr (std::is_same_v<std::remove_cvref_t<Slot>, std::function<FuncSig>>)
 			slots.emplace(connection, std::forward<Slot>(slot));
 		else if constexpr (std::is_invocable_v<Slot, void*, Args...>)
 			Connect(connection, std::function<FuncSig>{std::forward<Slot>(slot)});
 		else
-			Connect(connection, std::function<FuncSig>{details::SlotExpand<Args...>::template get(std::forward<Slot>(slot))});
+			Connect(connection, std::function<FuncSig>{details::SlotExpand<Ret(Args...)>::template get(std::forward<Slot>(slot))});
 	}
 
-	template<typename... Args>
+	template<typename Ret, typename... Args>
 	template<typename Slot>
 	requires std::negation_v<std::is_pointer<std::remove_cvref_t<Slot>>>
-	Connection Signal<Args...>::Connect(Slot&& slot) {
+	Connection Signal<Ret(Args...)>::Connect(Slot&& slot) {
 		Connection connection{ nullptr, reinterpret_cast<FuncSig*>(inner_id++)};
 		Connect(connection, std::forward<Slot>(slot));
 		return connection;
 	}
 
-	template<typename... Args>
+	template<typename Ret, typename... Args>
 	template<typename CallableObject>
-	Connection Signal<Args...>::Connect(CallableObject* ptr) {
+	Connection Signal<Ret(Args...)>::Connect(CallableObject* ptr) {
 		assert(ptr);
 		if constexpr (std::is_function_v<CallableObject>)
 			return Connect(Connection{ nullptr, reinterpret_cast<std::size_t>(ptr) },
-				details::SlotExpand<Args...>::template get(ptr));
+				details::SlotExpand<Ret(Args...)>::template get(ptr));
 		else
 			return Connect<&CallableObject::operator()>(ptr);
 	}
 
-	template<typename... Args>
+	template<typename Ret, typename... Args>
 	template<auto funcptr> requires std::is_function_v<std::remove_pointer_t<decltype(funcptr)>>
-	Connection Signal<Args...>::Connect() {
+	Connection Signal<Ret(Args...)>::Connect() {
 		Connection connection{ nullptr, reinterpret_cast<std::size_t>(funcptr) };
 		Connect(connection, details::SlotExpand<Args>::template get<funcptr>());
 		return connection;
 	}
 
-	template<typename... Args>
+	template<typename Ret, typename... Args>
 	template<auto memslot, typename T>
-	Connection Signal<Args...>::Connect(T* obj) {
+	Connection Signal<Ret(Args...)>::Connect(T* obj) {
 		using MemSlot = decltype(memslot);
 
 		assert(obj);
@@ -198,13 +238,13 @@ namespace Ubpa {
 		}
 
 		Connection connection{ instance, memslot };
-		Connect(connection, details::SlotExpand<Args...>::template mem_get<memslot>());
+		Connect(connection, details::SlotExpand<Ret(Args...)>::template mem_get<memslot>());
 		return connection;
 	}
 
-	template<typename... Args>
+	template<typename Ret, typename... Args>
 	template<auto memslot, typename T>
-	Connection Signal<Args...>::Connect(const T* obj) {
+	Connection Signal<Ret(Args...)>::Connect(const T* obj) {
 		using MemSlot = decltype(memslot);
 		if constexpr (std::is_member_function_pointer_v<MemSlot>)
 			static_assert(FuncTraits_is_const<MemSlot>);
@@ -217,9 +257,9 @@ namespace Ubpa {
 		return Connect<memslot>(const_cast<T*>(obj));
 	}
 
-	template<typename... Args>
+	template<typename Ret, typename... Args>
 	template<typename MemSlot, typename T>
-	Connection Signal<Args...>::Connect(MemSlot&& memslot, T* obj) {
+	Connection Signal<Ret(Args...)>::Connect(MemSlot&& memslot, T* obj) {
 		assert(obj);
 
 		void* instance;
@@ -237,13 +277,13 @@ namespace Ubpa {
 		}
 
 		Connection connection{ instance, funcptr };
-		Connect(connection, details::SlotExpand<Args...>::template mem_get(std::forward<MemSlot>(memslot)));
+		Connect(connection, details::SlotExpand<Ret(Args...)>::template mem_get(std::forward<MemSlot>(memslot)));
 		return connection;
 	}
 
-	template<typename... Args>
+	template<typename Ret, typename... Args>
 	template<typename MemSlot, typename T>
-	Connection Signal<Args...>::Connect(MemSlot&& memslot, const T* obj) {
+	Connection Signal<Ret(Args...)>::Connect(MemSlot&& memslot, const T* obj) {
 		using MemSlot = decltype(memslot);
 		if constexpr (std::is_member_function_pointer_v<MemSlot>)
 			static_assert(FuncTraits_is_const<decltype(MemSlot)>);
@@ -255,20 +295,27 @@ namespace Ubpa {
 		return Connect(std::forward<MemSlot>(memslot), const_cast<T*>(obj));
 	}
 
-	template<typename... Args>
-	void Signal<Args...>::Emit(Args... args) const {
+	template<typename Ret, typename... Args>
+	void Signal<Ret(Args...)>::Emit(Args... args) const {
 		for (const auto& [c, slot] : slots)
 			slot(reinterpret_cast<void*>(c.instance), std::forward<Args>(args)...);
 	}
 
-	template<typename... Args>
-	void Signal<Args...>::Disconnect(const Connection& connection) {
+	template<typename Ret, typename... Args>
+	template<typename Acc> requires std::negation_v<std::is_void<Ret>>
+	void Signal<Ret(Args...)>::Emit(Acc&& acc, Args... args) const {
+		for (const auto& [c, slot] : slots)
+			acc(slot(reinterpret_cast<void*>(c.instance), std::forward<Args>(args)...));
+	}
+
+	template<typename Ret, typename... Args>
+	void Signal<Ret(Args...)>::Disconnect(const Connection& connection) {
 		slots.erase(connection);
 	}
 
-	template<typename... Args>
+	template<typename Ret, typename... Args>
 	template<typename T>
-	void Signal<Args...>::Disconnect(const T* ptr) {
+	void Signal<Ret(Args...)>::Disconnect(const T* ptr) {
 		auto cursor = slots.begin();
 		if constexpr (std::is_function_v<std::remove_cvref_t<T>>) {
 			details::FuncPtr funcptr{ ptr };
@@ -291,33 +338,33 @@ namespace Ubpa {
 		}
 	}
 
-	template<typename... Args>
+	template<typename Ret, typename... Args>
 	template<auto funcptr>
 	requires std::is_function_v<std::remove_pointer_t<decltype(funcptr)>>
-	void Signal<Args...>::Disconnect() {
+	void Signal<Ret(Args...)>::Disconnect() {
 		Disconnect(Connection{ nullptr, funcptr });
 	}
 	
-	template<typename... Args>
+	template<typename Ret, typename... Args>
 	template<auto memfuncptr>
-	void Signal<Args...>::Disconnect(const member_pointer_traits_object<decltype(memfuncptr)>* obj) {
+	void Signal<Ret(Args...)>::Disconnect(const member_pointer_traits_object<decltype(memfuncptr)>* obj) {
 		Disconnect(Connection{const_cast<member_pointer_traits_object<decltype(memfuncptr)>*>(obj), memfuncptr});
 	}
 
-	template<typename... Args>
+	template<typename Ret, typename... Args>
 	template<typename MemFuncPtr>
-	void Signal<Args...>::Disconnect(MemFuncPtr memfuncptr, const member_pointer_traits_object<MemFuncPtr>* obj) {
+	void Signal<Ret(Args...)>::Disconnect(MemFuncPtr memfuncptr, const member_pointer_traits_object<MemFuncPtr>* obj) {
 		Disconnect(Connection{ const_cast<member_pointer_traits_object<MemFuncPtr>*>(obj), memfuncptr });
 	}
 
-	template<typename... Args>
-	void Signal<Args...>::Clear() noexcept {
+	template<typename Ret, typename... Args>
+	void Signal<Ret(Args...)>::Clear() noexcept {
 		slots.clear();
 	}
 
-	template<typename... Args>
+	template<typename Ret, typename... Args>
 	template<typename T>
-	void Signal<Args...>::Move(const T* dst, const T* src) {
+	void Signal<Ret(Args...)>::Move(const T* dst, const T* src) {
 		auto cursor = slots.begin();
 		while (cursor != slots.end()) {
 			if (cursor->first.instance == src) {

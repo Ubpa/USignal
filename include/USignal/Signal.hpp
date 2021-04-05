@@ -10,9 +10,13 @@
 #include <variant>
 
 namespace Ubpa {
-	template<typename... Args>
-	class Signal {
-		using FuncSig = void(void*, Args...);
+	template<typename Func>
+	class Signal;
+
+	template<typename Ret, typename... Args>
+	class Signal<Ret(Args...)> {
+		using FuncSig = Ret(void*, Args...);
+
 	public:
 		// you can only use the result to disconnect with this
 		template<typename Slot>
@@ -38,6 +42,9 @@ namespace Ubpa {
 
 		void Emit(Args... args) const;
 
+		template<typename Acc> requires std::negation_v<std::is_void<Ret>>
+		void Emit(Acc&& acc, Args... args) const;
+
 		void Disconnect(const Connection& connection);
 
 		template<typename T>
@@ -61,7 +68,7 @@ namespace Ubpa {
 	private:
 		size_t inner_id{ 0 };
 		template<typename Slot>
-		void Connect(const Connection& id, Slot&& slot);
+		void Connect(const Connection& connection, Slot&& slot);
 
 		small_flat_map<Connection, std::function<FuncSig>> slots;
 	};
