@@ -2,6 +2,8 @@
 
 #include "Connection.hpp"
 
+#include <UFunction.hpp>
+
 #include <USmallFlat/small_flat_map.hpp>
 
 #include <UTemplate/Func.hpp>
@@ -18,6 +20,12 @@ namespace Ubpa {
 		using FuncSig = Ret(void*, Args...);
 
 	public:
+		Signal() = default;
+		Signal(const Signal&) = delete;
+		Signal& operator=(const Signal&) = delete;
+		Signal(Signal&&) noexcept = default;
+		Signal& operator=(Signal&&) noexcept = default;
+
 		//
 		// Connect
 		////////////
@@ -85,10 +93,10 @@ namespace Ubpa {
 		// Emit
 		/////////
 
-		void Emit(Args... args) const;
+		void Emit(Args... args);
 
 		template<typename Acc> requires std::negation_v<std::is_void<Ret>>
-		void Emit(Acc&& acc, Args... args) const;
+		void Emit(Acc&& acc, Args... args);
 
 		//
 		// Modify
@@ -104,7 +112,7 @@ namespace Ubpa {
 		template<typename Slot>
 		void Connect(const Connection& connection, Slot&& slot);
 
-		small_flat_map<Connection, std::function<FuncSig>, 16, std::less<>> slots;
+		small_flat_map<Connection, unique_function<FuncSig>, 16, std::less<>> slots;
 	};
 }
 

@@ -185,12 +185,12 @@ namespace Ubpa {
 	template<typename Ret, typename... Args>
 	template<typename Slot>
 	void Signal<Ret(Args...)>::Connect(const Connection& connection, Slot&& slot) {
-		if constexpr (std::is_same_v<std::remove_cvref_t<Slot>, std::function<FuncSig>>)
+		if constexpr (std::is_constructible_v<unique_function<FuncSig>, Slot>)
 			slots.emplace(connection, std::forward<Slot>(slot));
 		else if constexpr (std::is_invocable_v<Slot, void*, Args...>)
-			Connect(connection, std::function<FuncSig>{std::forward<Slot>(slot)});
+			Connect(connection, unique_function<FuncSig>{std::forward<Slot>(slot)});
 		else
-			Connect(connection, std::function<FuncSig>{details::SlotExpand<Ret(Args...)>::template get(std::forward<Slot>(slot))});
+			Connect(connection, unique_function<FuncSig>{details::SlotExpand<Ret(Args...)>::template get(std::forward<Slot>(slot))});
 	}
 
 	template<typename Ret, typename... Args>
@@ -301,15 +301,15 @@ namespace Ubpa {
 	{ return { Connect(std::forward<MemSlot>(memslot), obj), this }; }
 
 	template<typename Ret, typename... Args>
-	void Signal<Ret(Args...)>::Emit(Args... args) const {
-		for (const auto& [c, slot] : slots)
+	void Signal<Ret(Args...)>::Emit(Args... args) {
+		for (auto& [c, slot] : slots)
 			slot(reinterpret_cast<void*>(c.instance), std::forward<Args>(args)...);
 	}
 
 	template<typename Ret, typename... Args>
 	template<typename Acc> requires std::negation_v<std::is_void<Ret>>
-	void Signal<Ret(Args...)>::Emit(Acc&& acc, Args... args) const {
-		for (const auto& [c, slot] : slots)
+	void Signal<Ret(Args...)>::Emit(Acc&& acc, Args... args) {
+		for (auto& [c, slot] : slots)
 			acc(slot(reinterpret_cast<void*>(c.instance), std::forward<Args>(args)...));
 	}
 
@@ -371,7 +371,7 @@ namespace Ubpa {
 	template<typename T>
 	void Signal<Ret(Args...)>::MoveInstance(const T* dst, const T* src) {
 		const void* instance = src;
-		small_vector<std::pair<Connection, std::function<FuncSig>>> buffer;
+		small_vector<std::pair<Connection, unique_function<FuncSig>>> buffer;
 		auto iter_begin = slots.lower_bound(instance);
 		auto cursor = iter_begin;
 		while (cursor != slots.end()) {

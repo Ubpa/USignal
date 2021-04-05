@@ -5,4 +5,5 @@ Ubpa_AddTarget(
   LIB
     Ubpa::UTemplate_core
     Ubpa::USmallFlat_core
+    Ubpa::UFunction_core
 )
