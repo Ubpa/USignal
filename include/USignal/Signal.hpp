@@ -18,6 +18,10 @@ namespace Ubpa {
 		using FuncSig = Ret(void*, Args...);
 
 	public:
+		//
+		// Connect
+		////////////
+		
 		// you can only use the result to disconnect with this
 		template<typename Slot>
 		requires std::negation_v<std::is_pointer<std::remove_cvref_t<Slot>>>
@@ -32,18 +36,35 @@ namespace Ubpa {
 
 		template<auto memslot, typename T>
 		Connection Connect(T* obj);
-		template<auto memslot, typename T>
-		Connection Connect(const T* obj);
 
 		template<typename MemSlot, typename T>
 		Connection Connect(MemSlot&& memslot, T* obj);
+
+		//
+		// Scope Connect
+		//////////////////
+
+		// you can only use the result to disconnect with this
+		template<typename Slot>
+		requires std::negation_v<std::is_pointer<std::remove_cvref_t<Slot>>>
+		ScopedConnection<Ret(Args...)> ScopeConnect(Slot&& slot);
+
+		template<typename CallableObject>
+		ScopedConnection<Ret(Args...)> ScopeConnect(CallableObject* ptr);
+
+		template<auto funcptr>
+		requires std::is_function_v<std::remove_pointer_t<decltype(funcptr)>>
+		ScopedConnection<Ret(Args...)> ScopeConnect();
+
+		template<auto memslot, typename T>
+		ScopedConnection<Ret(Args...)> ScopeConnect(T* obj);
+
 		template<typename MemSlot, typename T>
-		Connection Connect(MemSlot&& memslot, const T* obj);
+		ScopedConnection<Ret(Args...)> ScopeConnect(MemSlot&& memslot, T* obj);
 
-		void Emit(Args... args) const;
-
-		template<typename Acc> requires std::negation_v<std::is_void<Ret>>
-		void Emit(Acc&& acc, Args... args) const;
+		//
+		// Disconnect
+		///////////////
 
 		void Disconnect(const Connection& connection);
 
@@ -60,8 +81,21 @@ namespace Ubpa {
 		template<typename MemFuncPtr>
 		void Disconnect(MemFuncPtr memfuncptr, const member_pointer_traits_object<MemFuncPtr>* obj);
 
+		//
+		// Emit
+		/////////
+
+		void Emit(Args... args) const;
+
+		template<typename Acc> requires std::negation_v<std::is_void<Ret>>
+		void Emit(Acc&& acc, Args... args) const;
+
+		//
+		// Modify
+		///////////
+
 		template<typename T>
-		void Move(const T* dst, const T* src);
+		void MoveInstance(const T* dst, const T* src);
 
 		void Clear() noexcept;
 
@@ -70,7 +104,7 @@ namespace Ubpa {
 		template<typename Slot>
 		void Connect(const Connection& connection, Slot&& slot);
 
-		small_flat_map<Connection, std::function<FuncSig>> slots;
+		small_flat_map<Connection, std::function<FuncSig>, 16, std::less<>> slots;
 	};
 }
 

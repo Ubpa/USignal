@@ -1,6 +1,8 @@
 #pragma once
 
-#include <cstdint>
+#include <cstddef>
+#include <type_traits>
+#include <algorithm>
 
 namespace Ubpa::details {
 	struct a { virtual ~a() = default; void f(); virtual void g(); };

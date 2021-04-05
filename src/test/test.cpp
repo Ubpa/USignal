@@ -263,7 +263,7 @@ TEST(Signal, move) {
 	sig.Connect([copycnt = CopyCnt{ cnt }](A& a){
 		a.called = true;
 	}, &a0);
-	sig.Move(&a1, &a0);
+	sig.MoveInstance(&a1, &a0);
 	sig.Emit();
 	EXPECT_FALSE(a0.called);
 	EXPECT_TRUE(a1.called);
@@ -284,4 +284,67 @@ TEST(Signal, acc) {
 	Acc acc;
 	getints.Emit(acc);
 	EXPECT_EQ(acc.sum, 6);
+}
+
+TEST(Signal, scope) {
+	Signal<void()> sig;
+	int cnt = 0;
+	{
+		ScopedConnection conn{ sig.Connect([&]() {cnt++; }), &sig };
+		sig.Emit();
+		EXPECT_EQ(cnt, 1);
+	}
+	sig.Emit();
+	EXPECT_EQ(cnt, 1);
+}
+
+TEST(Signal, scope_move) {
+	struct A {
+		A() = default;
+		A(A&& a) noexcept : data{ a.data }, dataChanged { std::move(a.dataChanged) }, moved{ std::move(a.moved) }
+		{ moved.Emit(this); }
+
+		void SetData(int data) {
+			if (this->data != data) {
+				this->data = data;
+				dataChanged.Emit(data);
+			}
+		}
+
+		int data{ 0 };
+
+		Signal<void(int)> dataChanged;
+		Signal<void(A*)> moved;
+	};
+	struct DataTracker {
+		DataTracker(A& a) :
+			data_conn{ a.dataChanged.ScopeConnect([](DataTracker& t, int d) {
+				t.data = d;
+			}, this) },
+			move_conn{ a.moved.ScopeConnect([](DataTracker& t, A* a) {
+				t.data_conn.signal = &a->dataChanged;
+				t.move_conn.signal = &a->moved;
+			}, this) } {}
+
+		DataTracker(DataTracker&& t) noexcept :
+			data{ t.data }, data_conn{ std::move(t.data_conn) }, move_conn{ std::move(t.move_conn) }
+		{
+			data_conn.MoveInstance(this);
+			move_conn.MoveInstance(this);
+		}
+
+		ScopedConnection<void(int)> data_conn;
+		ScopedConnection<void(A*)> move_conn;
+		int data{ 0 };
+	};
+
+	A a;
+	{
+		DataTracker t(a);
+		A a2(std::move(a));
+		DataTracker t2(std::move(t));
+		a2.SetData(2);
+		EXPECT_EQ(t.data, 0);
+		EXPECT_EQ(t2.data, 2);
+	}
 }

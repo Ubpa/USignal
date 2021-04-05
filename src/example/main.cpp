@@ -8,7 +8,7 @@ public:
 
     int value() const { return m_value; }
 
-    Signal<int> valueChanged;
+    Signal<void(int)> valueChanged;
     void setValue(int value) {
         if (value != m_value) {
             m_value = value;

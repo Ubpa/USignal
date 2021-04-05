@@ -229,32 +229,21 @@ namespace Ubpa {
 		assert(obj);
 		
 		void* instance;
-		if constexpr (std::is_member_function_pointer_v<MemSlot>)
-			instance = static_cast<member_pointer_traits_object<MemSlot>*>(obj);
+		if constexpr (std::is_member_function_pointer_v<MemSlot>) {
+			static_assert(!std::is_const_v<T> || FuncTraits_is_const<MemSlot>);
+			instance = static_cast<member_pointer_traits_object<MemSlot>*>(const_cast<std::remove_const_t<T>*>(obj));
+		}
 		else {
 			using ArgList = FuncTraits_ArgList<MemSlot>;
 			using Object = Front_t<ArgList>;
-			instance = static_cast<std::remove_cvref_t<Object>*>(obj);
+			using UnrefObject = std::remove_reference_t<std::remove_pointer_t<Object>>;
+			static_assert(!std::is_const_v<T> || std::is_const_v<UnrefObject>);
+			instance = static_cast<std::remove_const_t<UnrefObject>*>(const_cast<std::remove_const_t<T>*>(obj));
 		}
 
 		Connection connection{ instance, memslot };
 		Connect(connection, details::SlotExpand<Ret(Args...)>::template mem_get<memslot>());
 		return connection;
-	}
-
-	template<typename Ret, typename... Args>
-	template<auto memslot, typename T>
-	Connection Signal<Ret(Args...)>::Connect(const T* obj) {
-		using MemSlot = decltype(memslot);
-		if constexpr (std::is_member_function_pointer_v<MemSlot>)
-			static_assert(FuncTraits_is_const<MemSlot>);
-		else {
-			using ArgList = FuncTraits_ArgList<MemSlot>;
-			using Object = Front_t<ArgList>;
-			static_assert(std::is_reference_v<Object>);
-			static_assert(std::is_const_v<std::remove_reference_t<Object>>);
-		}
-		return Connect<memslot>(const_cast<T*>(obj));
 	}
 
 	template<typename Ret, typename... Args>
@@ -265,14 +254,17 @@ namespace Ubpa {
 		void* instance;
 		details::FuncPtr funcptr;
 		if constexpr (std::is_member_function_pointer_v<MemSlot>) {
+			static_assert(!std::is_const_v<T> || FuncTraits_is_const<MemSlot>);
 			assert(memslot);
-			instance = static_cast<member_pointer_traits_object<MemSlot>*>(obj);
+			instance = static_cast<member_pointer_traits_object<MemSlot>*>(const_cast<std::remove_const_t<T>*>(obj));
 			funcptr = memslot;
 		}
 		else {
 			using ArgList = FuncTraits_ArgList<MemSlot>;
 			using Object = Front_t<ArgList>;
-			instance = static_cast<std::remove_cv_t<std::remove_reference_t<std::remove_pointer_t<Object>>>*>(obj);
+			using UnrefObject = std::remove_reference_t<std::remove_pointer_t<Object>>;
+			static_assert(!std::is_const_v<T> || std::is_const_v<UnrefObject>);
+			instance = static_cast<std::remove_const_t<UnrefObject>*>(const_cast<std::remove_const_t<T>*>(obj));
 			funcptr = reinterpret_cast<FuncSig*>(inner_id++);
 		}
 
@@ -282,18 +274,31 @@ namespace Ubpa {
 	}
 
 	template<typename Ret, typename... Args>
+	template<typename Slot>
+	requires std::negation_v<std::is_pointer<std::remove_cvref_t<Slot>>>
+	ScopedConnection<Ret(Args...)> Signal<Ret(Args...)>::ScopeConnect(Slot&& slot)
+	{ return { Connect(std::forward<Slot>(slot)), this }; }
+
+	template<typename Ret, typename... Args>
+	template<typename CallableObject>
+	ScopedConnection<Ret(Args...)> Signal<Ret(Args...)>::ScopeConnect(CallableObject* ptr)
+	{ return { Connect(ptr), this }; }
+
+	template<typename Ret, typename... Args>
+	template<auto funcptr>
+	requires std::is_function_v<std::remove_pointer_t<decltype(funcptr)>>
+	ScopedConnection<Ret(Args...)> Signal<Ret(Args...)>::ScopeConnect()
+	{ return { Connect<funcptr>(), this }; }
+
+	template<typename Ret, typename... Args>
+	template<auto memslot, typename T>
+	ScopedConnection<Ret(Args...)> Signal<Ret(Args...)>::ScopeConnect(T* obj)
+	{ return { Connect<memslot>(obj), this }; }
+
+	template<typename Ret, typename... Args>
 	template<typename MemSlot, typename T>
-	Connection Signal<Ret(Args...)>::Connect(MemSlot&& memslot, const T* obj) {
-		using MemSlot = decltype(memslot);
-		if constexpr (std::is_member_function_pointer_v<MemSlot>)
-			static_assert(FuncTraits_is_const<decltype(MemSlot)>);
-		else {
-			using ArgList = FuncTraits_ArgList<MemSlot>;
-			using Object = Front_t<ArgList>;
-			static_assert(std::is_const_v<std::remove_reference_t<std::remove_pointer_t<Object>>>);
-		}
-		return Connect(std::forward<MemSlot>(memslot), const_cast<T*>(obj));
-	}
+	ScopedConnection<Ret(Args...)> Signal<Ret(Args...)>::ScopeConnect(MemSlot&& memslot, T* obj)
+	{ return { Connect(std::forward<MemSlot>(memslot), obj), this }; }
 
 	template<typename Ret, typename... Args>
 	void Signal<Ret(Args...)>::Emit(Args... args) const {
@@ -364,17 +369,22 @@ namespace Ubpa {
 
 	template<typename Ret, typename... Args>
 	template<typename T>
-	void Signal<Ret(Args...)>::Move(const T* dst, const T* src) {
-		auto cursor = slots.begin();
+	void Signal<Ret(Args...)>::MoveInstance(const T* dst, const T* src) {
+		const void* instance = src;
+		small_vector<std::pair<Connection, std::function<FuncSig>>> buffer;
+		auto iter_begin = slots.lower_bound(instance);
+		auto cursor = iter_begin;
 		while (cursor != slots.end()) {
-			if (cursor->first.instance == src) {
-				Connection conncection{ const_cast<T*>(dst), cursor->first.funcptr };
-				auto f = std::move(cursor->second);
-				cursor = slots.erase(cursor);
-				cursor = slots.emplace_hint(cursor, conncection, std::move(f));
-				continue;
-			}
+			if (cursor->first.instance != src)
+				break;
+			buffer.emplace_back(
+				Connection{ const_cast<T*>(dst), cursor->first.funcptr },
+				std::move(cursor->second)
+			);
 			++cursor;
 		}
+		slots.erase(iter_begin, cursor);
+		for (auto& ele : buffer)
+			slots.emplace(ele.first, std::move(ele.second));
 	}
 }
