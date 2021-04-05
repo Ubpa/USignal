@@ -1,4 +1,5 @@
 #pragma once
 
-#include "Signal.hpp"
 #include "Connection.hpp"
+#include "MSignal.hpp"
+#include "Signal.hpp"

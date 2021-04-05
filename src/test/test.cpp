@@ -348,3 +348,44 @@ TEST(Signal, scope_move) {
 		EXPECT_EQ(t2.data, 2);
 	}
 }
+
+
+template<typename T>
+concept MemberSignalTest0 = requires(T t) {
+	{ decltype(t.signal)(std::move(t.signal)) };
+};
+template<typename T>
+concept MemberSignalTest1 = requires(T t) {
+	{ t.signal.Emit() };
+};
+template<typename T>
+concept MemberSignalTest2 = requires(T t) {
+	{ t.signal.Clear() };
+};
+template<typename T>
+concept MemberSignalTest3 = requires(T a, T b) {
+	{ a.signal.Swap(b.signal) };
+};
+
+TEST(Signal, member) {
+	struct A {
+		MSignal<A, void()> signal;
+		void EmitSignal() { signal.Emit(); }
+	};
+	struct B {
+		Signal<void()> signal;
+	};
+	EXPECT_FALSE(MemberSignalTest0<A>);
+	EXPECT_FALSE(MemberSignalTest1<A>);
+	EXPECT_FALSE(MemberSignalTest2<A>);
+	EXPECT_FALSE(MemberSignalTest3<A>);
+	EXPECT_TRUE(MemberSignalTest0<B>);
+	EXPECT_TRUE(MemberSignalTest1<B>);
+	EXPECT_TRUE(MemberSignalTest2<B>);
+	EXPECT_TRUE(MemberSignalTest3<B>);
+	A a;
+	bool called = false;
+	a.signal.Connect([&called] {called = true; });
+	a.EmitSignal();
+	EXPECT_TRUE(called);
+}

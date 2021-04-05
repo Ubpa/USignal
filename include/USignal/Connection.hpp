@@ -43,12 +43,13 @@ namespace Ubpa {
 		}
 
 		ScopedConnection& operator=(ScopedConnection&& rhs) noexcept {
-			Swap(rhs);
+			ScopedConnection{ std::move(rhs) }.Swap(*this);
 			return *this;
 		}
 
 		void Swap(ScopedConnection& other) noexcept {
 			std::swap(signal, other.signal);
+			std::swap(static_cast<Connection&>(*this), static_cast<Connection&>(other));
 		}
 
 		void MoveInstance(void* instance) {

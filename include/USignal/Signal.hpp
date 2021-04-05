@@ -107,10 +107,15 @@ namespace Ubpa {
 
 		void Clear() noexcept;
 
+		void Swap(Signal& other) noexcept {
+			std::swap(inner_id, other.inner_id);
+			std::swap(slots, other.slots);
+		}
+
 	private:
 		size_t inner_id{ 0 };
 		template<typename Slot>
-		void Connect(const Connection& connection, Slot&& slot);
+		void ConnectImpl(const Connection& connection, Slot&& slot);
 
 		small_flat_map<Connection, unique_function<FuncSig>, 16, std::less<>> slots;
 	};

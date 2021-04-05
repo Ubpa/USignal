@@ -184,13 +184,11 @@ namespace Ubpa::details {
 namespace Ubpa {
 	template<typename Ret, typename... Args>
 	template<typename Slot>
-	void Signal<Ret(Args...)>::Connect(const Connection& connection, Slot&& slot) {
+	void Signal<Ret(Args...)>::ConnectImpl(const Connection& connection, Slot&& slot) {
 		if constexpr (std::is_constructible_v<unique_function<FuncSig>, Slot>)
 			slots.emplace(connection, std::forward<Slot>(slot));
-		else if constexpr (std::is_invocable_v<Slot, void*, Args...>)
-			Connect(connection, unique_function<FuncSig>{std::forward<Slot>(slot)});
 		else
-			Connect(connection, unique_function<FuncSig>{details::SlotExpand<Ret(Args...)>::template get(std::forward<Slot>(slot))});
+			ConnectImpl(connection, details::SlotExpand<Ret(Args...)>::template get(std::forward<Slot>(slot)));
 	}
 
 	template<typename Ret, typename... Args>
@@ -198,7 +196,7 @@ namespace Ubpa {
 	requires std::negation_v<std::is_pointer<std::remove_cvref_t<Slot>>>
 	Connection Signal<Ret(Args...)>::Connect(Slot&& slot) {
 		Connection connection{ nullptr, reinterpret_cast<FuncSig*>(inner_id++)};
-		Connect(connection, std::forward<Slot>(slot));
+		ConnectImpl(connection, std::forward<Slot>(slot));
 		return connection;
 	}
 
@@ -217,7 +215,7 @@ namespace Ubpa {
 	template<auto funcptr> requires std::is_function_v<std::remove_pointer_t<decltype(funcptr)>>
 	Connection Signal<Ret(Args...)>::Connect() {
 		Connection connection{ nullptr, reinterpret_cast<std::size_t>(funcptr) };
-		Connect(connection, details::SlotExpand<Args>::template get<funcptr>());
+		ConnectImpl(connection, details::SlotExpand<Args>::template get<funcptr>());
 		return connection;
 	}
 
@@ -242,7 +240,7 @@ namespace Ubpa {
 		}
 
 		Connection connection{ instance, memslot };
-		Connect(connection, details::SlotExpand<Ret(Args...)>::template mem_get<memslot>());
+		ConnectImpl(connection, details::SlotExpand<Ret(Args...)>::template mem_get<memslot>());
 		return connection;
 	}
 
@@ -269,7 +267,7 @@ namespace Ubpa {
 		}
 
 		Connection connection{ instance, funcptr };
-		Connect(connection, details::SlotExpand<Ret(Args...)>::template mem_get(std::forward<MemSlot>(memslot)));
+		ConnectImpl(connection, details::SlotExpand<Ret(Args...)>::template mem_get(std::forward<MemSlot>(memslot)));
 		return connection;
 	}
 
