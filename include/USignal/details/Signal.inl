@@ -321,25 +321,15 @@ namespace Ubpa {
 	template<typename Ret, typename... Args>
 	template<typename T>
 	void Signal<Ret(Args...)>::Disconnect(const T* ptr) {
-		auto cursor = slots.begin();
-		if constexpr (std::is_function_v<std::remove_cvref_t<T>>) {
-			details::FuncPtr funcptr{ ptr };
-			while (cursor != slots.end()) {
-				if (cursor->first.funcptr == funcptr) {
-					cursor = slots.erase(cursor);
-					continue;
-				}
-				++cursor;
-			}
-		}
+		if constexpr (std::is_function_v<T>)
+			Disconnect(Connection{ nullptr, ptr });
 		else{
-			while (cursor != slots.end()) {
-				if (cursor->first.instance == ptr) {
-					cursor = slots.erase(cursor);
-					continue;
-				}
+			const auto iter_begin = slots.lower_bound(ptr);
+			const auto iter_end = slots.end();
+			auto cursor = iter_begin;
+			while (cursor != iter_end && cursor->first.instance == ptr)
 				++cursor;
-			}
+			slots.erase(iter_begin, cursor);
 		}
 	}
 
@@ -369,22 +359,16 @@ namespace Ubpa {
 
 	template<typename Ret, typename... Args>
 	template<typename T>
-	void Signal<Ret(Args...)>::MoveInstance(const T* dst, const T* src) {
-		const void* instance = src;
-		small_vector<std::pair<Connection, unique_function<FuncSig>>> buffer;
-		auto iter_begin = slots.lower_bound(instance);
+	void Signal<Ret(Args...)>::MoveInstance(T* dst, const T* src) {
+		const auto iter_begin = slots.lower_bound(src);
+		const auto iter_end = slots.end();
 		auto cursor = iter_begin;
-		while (cursor != slots.end()) {
-			if (cursor->first.instance != src)
-				break;
-			buffer.emplace_back(
-				Connection{ const_cast<T*>(dst), cursor->first.funcptr },
-				std::move(cursor->second)
-			);
+		small_vector<std::pair<Connection, unique_function<FuncSig>>> buffer;
+		while (cursor != iter_end && cursor->first.instance == src) {
+			buffer.emplace_back(Connection{ dst, cursor->first.funcptr }, std::move(cursor->second));
 			++cursor;
 		}
 		slots.erase(iter_begin, cursor);
-		for (auto& ele : buffer)
-			slots.emplace(ele.first, std::move(ele.second));
+		slots.insert(std::make_move_iterator(buffer.begin()), std::make_move_iterator(buffer.end()));
 	}
 }

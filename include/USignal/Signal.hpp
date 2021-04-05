@@ -103,7 +103,7 @@ namespace Ubpa {
 		///////////
 
 		template<typename T>
-		void MoveInstance(const T* dst, const T* src);
+		void MoveInstance(T* dst, const T* src);
 
 		void Clear() noexcept;
 
