@@ -41,16 +41,26 @@ namespace Ubpa {
 			if (signal)
 				signal->Disconnect(*this);
 		}
+
 		ScopedConnection& operator=(ScopedConnection&& rhs) noexcept {
-			swap(rhs);
+			Swap(rhs);
 			return *this;
 		}
-		void swap(ScopedConnection& other) noexcept {
+
+		void Swap(ScopedConnection& other) noexcept {
 			std::swap(signal, other.signal);
 		}
+
 		void MoveInstance(void* instance) {
 			signal->MoveInstance(instance, this->instance);
 			this->instance = instance;
+		}
+
+		void Release() {
+			if (signal) {
+				signal->Disconnect(*this);
+				signal = nullptr;
+			}
 		}
 
 		ScopedConnection(const ScopedConnection&) = delete;
