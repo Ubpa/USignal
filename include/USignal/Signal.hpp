@@ -115,7 +115,7 @@ namespace Ubpa {
 		// memslot
 		// - member function pointer
 		// - function pointer, the first argument is treated as the object, it can be a pointer or reference
-		// unlike similar Connect API, the memslot can be other callable object
+		// unlike similar Connect API, the memslot can't be other callable object
 		template<typename MemSlot>
 		void Disconnect(MemSlot memslot, const details::ObjectTypeOfGeneralMemFunc_t<MemSlot>* obj);
 

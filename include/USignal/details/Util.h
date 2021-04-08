@@ -24,7 +24,7 @@ namespace Ubpa::details {
 	};
 
 	union FuncPtr {
-		FuncPtr() = default;
+		constexpr FuncPtr() noexcept : data{} {}
 
 		template<typename T>
 		constexpr FuncPtr(T t) noexcept {

@@ -12,21 +12,12 @@ namespace Ubpa {
 	struct Connection {
 		void* instance;
 		details::FuncPtr funcptr;
-
-		friend bool operator<(const Connection& lhs, const void* rhs) {
-			return lhs.instance < rhs;
-		}
-		friend bool operator<(const void* lhs, const Connection& rhs) {
-			return lhs <= rhs.instance;
-		}
-		friend bool operator<(const Connection& lhs, const Connection& rhs) {
-			return lhs.instance < rhs.instance
-				|| (lhs.instance == rhs.instance && lhs.funcptr < rhs.funcptr);
-		}
-		friend bool operator==(const Connection& lhs, const Connection& rhs) {
-			return lhs.instance == rhs.instance && lhs.funcptr == rhs.funcptr;
-		}
 	};
+
+	constexpr bool operator<(const Connection& lhs, const void* rhs);
+	constexpr bool operator<(const void* lhs, const Connection& rhs);
+	constexpr bool operator<(const Connection& lhs, const Connection& rhs);
+	constexpr bool operator==(const Connection& lhs, const Connection& rhs);
 
 	// You need to ensure that the life of the signal is longer than the life of the scpoed connection
 	// The signal is movable, so you need to change the signal pointer of the scpoed connection when moving the signal
@@ -34,36 +25,18 @@ namespace Ubpa {
 	struct ScopedConnection : Connection {
 		Signal<Func>* signal;
 
-		ScopedConnection() : signal{ nullptr } {}
-		ScopedConnection(const Connection& conn, Signal<Func>* sig) : Connection{ conn }, signal{ sig }{}
-		ScopedConnection(ScopedConnection&& other) noexcept :
-			Connection{ std::move(other) }, signal{ other.signal } { other.signal = nullptr; }
-		~ScopedConnection() {
-			if (signal)
-				signal->Disconnect(*this);
-		}
+		ScopedConnection() noexcept;
+		ScopedConnection(const Connection& conn, Signal<Func>* sig) noexcept;
+		ScopedConnection(ScopedConnection&& other) noexcept;
+		~ScopedConnection();
 
-		ScopedConnection& operator=(ScopedConnection&& rhs) noexcept {
-			ScopedConnection{ std::move(rhs) }.Swap(*this);
-			return *this;
-		}
+		ScopedConnection& operator=(ScopedConnection&& rhs) noexcept;
 
-		void Swap(ScopedConnection& other) noexcept {
-			std::swap(signal, other.signal);
-			std::swap(static_cast<Connection&>(*this), static_cast<Connection&>(other));
-		}
+		void Swap(ScopedConnection& other) noexcept;
 
-		void MoveInstance(void* instance) {
-			signal->MoveInstance(instance, this->instance);
-			this->instance = instance;
-		}
+		void MoveInstance(void* instance);
 
-		void Release() {
-			if (signal) {
-				signal->Disconnect(*this);
-				signal = nullptr;
-			}
-		}
+		void Release();
 
 		ScopedConnection(const ScopedConnection&) = delete;
 		ScopedConnection& operator=(const ScopedConnection&) = delete;
@@ -71,3 +44,5 @@ namespace Ubpa {
 	template<typename Func>
 	ScopedConnection(const Connection&, Signal<Func>*)->ScopedConnection<Func>;
 }
+
+#include "details/Connection.inl"
