@@ -4,7 +4,7 @@
 
 namespace Ubpa {
 	// use the signal as a public member object of type T
-	// other users can't emit/clear/move/swap the signal
+	// other users can't emit/clear/move/swap the signal, but T can do all of them
 	template<typename T, typename Func>
 	class MSignal;
 

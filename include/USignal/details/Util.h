@@ -48,4 +48,23 @@ namespace Ubpa::details {
 		FuncTypes _;
 		std::size_t data[sizeof(FuncTypes) / sizeof(std::size_t)];
 	};
+
+	template<typename MemFuncPtr>
+	struct ObjectTypeOfGeneralMemFunc;
+	template<typename MemFuncPtr>
+	using ObjectTypeOfGeneralMemFunc_t = typename ObjectTypeOfGeneralMemFunc<MemFuncPtr>::type;
+	template<typename Func, typename Object>
+	struct ObjectTypeOfGeneralMemFunc<Func Object::*> {
+		using type = Object;
+	};
+	template<typename Ret, typename Object, typename... Args>
+	struct ObjectTypeOfGeneralMemFunc<Ret(*)(Object, Args...)> {
+		using type = std::remove_reference_t<std::remove_pointer_t<Object>>;
+	};
+	template<typename T>
+	struct ObjectTypeOfGeneralMemFunc<const T> : ObjectTypeOfGeneralMemFunc<T> {};
+	template<typename T>
+	struct ObjectTypeOfGeneralMemFunc<T&> : ObjectTypeOfGeneralMemFunc<T> {};
+	template<typename T>
+	struct ObjectTypeOfGeneralMemFunc<T&&> : ObjectTypeOfGeneralMemFunc<T> {};
 }

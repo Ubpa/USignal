@@ -14,8 +14,8 @@ namespace Ubpa::details {
 		}
 
 		// Ret(Object::*)(...)
-		// Ret(Object&, ...)
-		// Ret(Object*, ...)
+		// Ret([const] Object&, ...)
+		// Ret([const] Object*, ...)
 		template<auto memfunc>
 		static auto mem_get() noexcept {
 			using MemFunc = decltype(memfunc);
@@ -36,8 +36,8 @@ namespace Ubpa::details {
 		}
 
 		// Ret(Object::*)(...)
-		// Ret(Object&, ...)
-		// Ret(Object*, ...)
+		// Ret([const] Object&, ...)
+		// Ret([const] Object*, ...)
 		template<typename MemFunc>
 		static auto mem_get(MemFunc&& memfunc) noexcept {
 			if constexpr (std::is_member_function_pointer_v<std::remove_cvref_t<MemFunc>>) {
@@ -233,6 +233,7 @@ namespace Ubpa {
 			instance = static_cast<member_pointer_traits_object<MemSlot>*>(const_cast<std::remove_const_t<T>*>(obj));
 		}
 		else {
+			static_assert(is_function_pointer_v<decltype(memslot)>);
 			using ArgList = FuncTraits_ArgList<MemSlot>;
 			using Object = Front_t<ArgList>;
 			using UnrefObject = std::remove_reference_t<std::remove_pointer_t<Object>>;
@@ -264,7 +265,10 @@ namespace Ubpa {
 			using UnrefObject = std::remove_reference_t<std::remove_pointer_t<Object>>;
 			static_assert(!std::is_const_v<T> || std::is_const_v<UnrefObject>);
 			instance = static_cast<std::remove_const_t<UnrefObject>*>(const_cast<std::remove_const_t<T>*>(obj));
-			funcptr = reinterpret_cast<FuncSig*>(inner_id++);
+			if constexpr (is_function_pointer_v<MemSlot>)
+				funcptr = memslot;
+			else
+				funcptr = reinterpret_cast<FuncSig*>(inner_id++);
 		}
 
 		Connection connection{ instance, funcptr };
@@ -338,16 +342,15 @@ namespace Ubpa {
 	}
 	
 	template<typename Ret, typename... Args>
-	template<auto memfuncptr>
-	void Signal<Ret(Args...)>::Disconnect(const member_pointer_traits_object<decltype(memfuncptr)>* obj) {
-		static_assert(std::is_member_function_pointer_v<decltype(memfuncptr)>);
-		Disconnect(Connection{const_cast<member_pointer_traits_object<decltype(memfuncptr)>*>(obj), memfuncptr});
+	template<auto memslot>
+	void Signal<Ret(Args...)>::Disconnect(const details::ObjectTypeOfGeneralMemFunc_t<decltype(memslot)>* obj) {
+		Disconnect(Connection{const_cast<details::ObjectTypeOfGeneralMemFunc_t<decltype(memslot)>*>(obj), memslot });
 	}
 
 	template<typename Ret, typename... Args>
-	template<typename MemFuncPtr>
-	void Signal<Ret(Args...)>::Disconnect(MemFuncPtr memfuncptr, const member_pointer_traits_object<MemFuncPtr>* obj) {
-		Disconnect(Connection{ const_cast<member_pointer_traits_object<MemFuncPtr>*>(obj), memfuncptr });
+	template<typename MemSlot>
+	void Signal<Ret(Args...)>::Disconnect(MemSlot memslot, const details::ObjectTypeOfGeneralMemFunc_t<MemSlot>* obj) {
+		Disconnect(Connection{ const_cast<details::ObjectTypeOfGeneralMemFunc_t<MemSlot>*>(obj), memslot });
 	}
 
 	template<typename Ret, typename... Args>

@@ -28,7 +28,8 @@ namespace Ubpa {
 		}
 	};
 
-	// The signal may move, so you need to track its address.
+	// You need to ensure that the life of the signal is longer than the life of the scpoed connection
+	// The signal is movable, so you need to change the signal pointer of the scpoed connection when moving the signal
 	template<typename Func>
 	struct ScopedConnection : Connection {
 		Signal<Func>* signal;

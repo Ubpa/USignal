@@ -15,6 +15,12 @@ namespace Ubpa {
 	template<typename Func>
 	class Signal;
 
+	// you can register function R(Ts...)
+	// require
+	// - if Ret is void, R can be any type, else R should be implicit convertible to Ret
+	// - Ts... must be compatible with Args...
+	// for example
+	// float(const int&) is compatible with void(int)
 	template<typename Ret, typename... Args>
 	class Signal<Ret(Args...)> {
 		using FuncSig = Ret(void*, Args...);
@@ -40,15 +46,27 @@ namespace Ubpa {
 		template<auto funcptr>
 		Connection Connect();
 
+		// memslot
+		// - member function pointer
+		// - function pointer, the first argument is treated as the object, it can be a pointer or reference
+		// if T is const, the object type in memslot must also be const
 		template<auto memslot, typename T>
 		Connection Connect(T* obj);
 
+		// memslot
+		// 1. member function pointer
+		// 2. function pointer, the first argument is treated as the object, it can be a pointer or reference
+		// 3. callable object
+		// in case 1 and 2, we use memslot as the funcptr of the result connection
+		// if T is const, the object type in memslot must also be const
 		template<typename MemSlot, typename T>
 		Connection Connect(MemSlot&& memslot, T* obj);
 
 		//
 		// Scope Connect
 		//////////////////
+		// You need to ensure that the life of the signal is longer than the life of the scpoed connection
+		// The signal is movable, so you need to change the signal pointer of the scpoed connection when moving the signal
 
 		template<typename CallableObject>
 		ScopedConnection<Ret(Args...)> ScopeConnect(CallableObject* ptr);
@@ -60,9 +78,19 @@ namespace Ubpa {
 		template<auto funcptr>
 		ScopedConnection<Ret(Args...)> ScopeConnect();
 
+		// memslot
+		// - member function pointer
+		// - function pointer, the first argument is treated as the object, it can be a pointer or reference
+		// if T is const, the object type in memslot must also be const
 		template<auto memslot, typename T>
 		ScopedConnection<Ret(Args...)> ScopeConnect(T* obj);
 
+		// memslot
+		// 1. member function pointer
+		// 2. function pointer, the first argument is treated as the object, it can be a pointer or reference
+		// 3. other callable object
+		// in case 1 and 2, we use memslot as the funcptr of the result connection
+		// if T is const, the object type in memslot must also be const
 		template<typename MemSlot, typename T>
 		ScopedConnection<Ret(Args...)> ScopeConnect(MemSlot&& memslot, T* obj);
 
@@ -78,11 +106,18 @@ namespace Ubpa {
 		template<auto funcptr>
 		void Disconnect();
 
-		template<auto memfuncptr>
-		void Disconnect(const member_pointer_traits_object<decltype(memfuncptr)>* obj);
+		// memslot
+		// - member function pointer
+		// - function pointer, the first argument is treated as the object, it can be a pointer or reference
+		template<auto memslot>
+		void Disconnect(const details::ObjectTypeOfGeneralMemFunc_t<decltype(memslot)>* obj);
 
-		template<typename MemFuncPtr>
-		void Disconnect(MemFuncPtr memfuncptr, const member_pointer_traits_object<MemFuncPtr>* obj);
+		// memslot
+		// - member function pointer
+		// - function pointer, the first argument is treated as the object, it can be a pointer or reference
+		// unlike similar Connect API, the memslot can be other callable object
+		template<typename MemSlot>
+		void Disconnect(MemSlot memslot, const details::ObjectTypeOfGeneralMemFunc_t<MemSlot>* obj);
 
 		//
 		// Emit
