@@ -29,17 +29,15 @@ namespace Ubpa {
 		//
 		// Connect
 		////////////
-		
-		// you can only use the result to disconnect with this
-		template<typename Slot>
-		requires std::negation_v<std::is_pointer<std::remove_cvref_t<Slot>>>
-		Connection Connect(Slot&& slot);
 
 		template<typename CallableObject>
 		Connection Connect(CallableObject* ptr);
+		
+		// you can only use the result to disconnect with this
+		template<typename Slot>
+		Connection Connect(Slot&& slot);
 
 		template<auto funcptr>
-		requires std::is_function_v<std::remove_pointer_t<decltype(funcptr)>>
 		Connection Connect();
 
 		template<auto memslot, typename T>
@@ -52,16 +50,14 @@ namespace Ubpa {
 		// Scope Connect
 		//////////////////
 
-		// you can only use the result to disconnect with this
-		template<typename Slot>
-		requires std::negation_v<std::is_pointer<std::remove_cvref_t<Slot>>>
-		ScopedConnection<Ret(Args...)> ScopeConnect(Slot&& slot);
-
 		template<typename CallableObject>
 		ScopedConnection<Ret(Args...)> ScopeConnect(CallableObject* ptr);
 
+		// you can only use the result to disconnect with this
+		template<typename Slot>
+		ScopedConnection<Ret(Args...)> ScopeConnect(Slot&& slot);
+
 		template<auto funcptr>
-		requires std::is_function_v<std::remove_pointer_t<decltype(funcptr)>>
 		ScopedConnection<Ret(Args...)> ScopeConnect();
 
 		template<auto memslot, typename T>
@@ -80,7 +76,6 @@ namespace Ubpa {
 		void Disconnect(const T* ptr);
 
 		template<auto funcptr>
-		requires std::is_function_v<std::remove_pointer_t<decltype(funcptr)>>
 		void Disconnect();
 
 		template<auto memfuncptr>

@@ -193,8 +193,8 @@ namespace Ubpa {
 
 	template<typename Ret, typename... Args>
 	template<typename Slot>
-	requires std::negation_v<std::is_pointer<std::remove_cvref_t<Slot>>>
 	Connection Signal<Ret(Args...)>::Connect(Slot&& slot) {
+		static_assert(!std::is_pointer_v<Slot>);
 		Connection connection{ nullptr, reinterpret_cast<FuncSig*>(inner_id++)};
 		ConnectImpl(connection, std::forward<Slot>(slot));
 		return connection;
@@ -212,8 +212,9 @@ namespace Ubpa {
 	}
 
 	template<typename Ret, typename... Args>
-	template<auto funcptr> requires std::is_function_v<std::remove_pointer_t<decltype(funcptr)>>
+	template<auto funcptr>
 	Connection Signal<Ret(Args...)>::Connect() {
+		static_assert(std::is_function_v<std::remove_pointer_t<decltype(funcptr)>>);
 		Connection connection{ nullptr, reinterpret_cast<std::size_t>(funcptr) };
 		ConnectImpl(connection, details::SlotExpand<Args>::template get<funcptr>());
 		return connection;
@@ -273,7 +274,6 @@ namespace Ubpa {
 
 	template<typename Ret, typename... Args>
 	template<typename Slot>
-	requires std::negation_v<std::is_pointer<std::remove_cvref_t<Slot>>>
 	ScopedConnection<Ret(Args...)> Signal<Ret(Args...)>::ScopeConnect(Slot&& slot)
 	{ return { Connect(std::forward<Slot>(slot)), this }; }
 
@@ -284,7 +284,6 @@ namespace Ubpa {
 
 	template<typename Ret, typename... Args>
 	template<auto funcptr>
-	requires std::is_function_v<std::remove_pointer_t<decltype(funcptr)>>
 	ScopedConnection<Ret(Args...)> Signal<Ret(Args...)>::ScopeConnect()
 	{ return { Connect<funcptr>(), this }; }
 
@@ -333,14 +332,15 @@ namespace Ubpa {
 
 	template<typename Ret, typename... Args>
 	template<auto funcptr>
-	requires std::is_function_v<std::remove_pointer_t<decltype(funcptr)>>
 	void Signal<Ret(Args...)>::Disconnect() {
+		static_assert(is_function_pointer_v<decltype(funcptr)>);
 		Disconnect(Connection{ nullptr, funcptr });
 	}
 	
 	template<typename Ret, typename... Args>
 	template<auto memfuncptr>
 	void Signal<Ret(Args...)>::Disconnect(const member_pointer_traits_object<decltype(memfuncptr)>* obj) {
+		static_assert(std::is_member_function_pointer_v<decltype(memfuncptr)>);
 		Disconnect(Connection{const_cast<member_pointer_traits_object<decltype(memfuncptr)>*>(obj), memfuncptr});
 	}
 
