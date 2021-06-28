@@ -185,8 +185,11 @@ namespace Ubpa {
 	template<typename Ret, typename... Args>
 	template<typename Slot>
 	void Signal<Ret(Args...)>::ConnectImpl(const Connection& connection, Slot&& slot) {
-		if constexpr (std::is_constructible_v<unique_function<FuncSig>, Slot>)
-			slots.emplace(connection, std::forward<Slot>(slot));
+		if constexpr (std::is_constructible_v<unique_function<FuncSig>, Slot>) {
+			unique_function<FuncSig> func(std::forward<Slot>(slot));
+			assert(func);
+			slots.emplace(connection, std::move(func));
+		}
 		else
 			ConnectImpl(connection, details::SlotExpand<Ret(Args...)>::template get(std::forward<Slot>(slot)));
 	}
@@ -223,8 +226,9 @@ namespace Ubpa {
 	template<typename Ret, typename... Args>
 	template<auto memslot, typename T>
 	Connection Signal<Ret(Args...)>::Connect(T* obj) {
-		using MemSlot = decltype(memslot);
+		static_assert(memslot != nullptr);
 
+		using MemSlot = decltype(memslot);
 		assert(obj);
 		
 		void* instance;
@@ -265,8 +269,10 @@ namespace Ubpa {
 			using UnrefObject = std::remove_reference_t<std::remove_pointer_t<Object>>;
 			static_assert(!std::is_const_v<T> || std::is_const_v<UnrefObject>);
 			instance = static_cast<std::remove_const_t<UnrefObject>*>(const_cast<std::remove_const_t<T>*>(obj));
-			if constexpr (is_function_pointer_v<MemSlot>)
+			if constexpr (is_function_pointer_v<MemSlot>) {
+				assert(memslot);
 				funcptr = memslot;
+			}
 			else
 				funcptr = reinterpret_cast<FuncSig*>(inner_id++);
 		}
