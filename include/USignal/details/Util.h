@@ -38,6 +38,11 @@ namespace Ubpa::details {
 			}
 		}
 
+		constexpr void Reset() noexcept {
+			for (std::size_t i = 0; i < sizeof(FuncTypes) / sizeof(std::size_t); i++)
+				data[i] = 0;
+		}
+
 		friend constexpr bool operator==(const FuncPtr& lhs, const FuncPtr& rhs) noexcept {
 			return std::equal(std::begin(lhs.data), std::end(lhs.data), std::begin(rhs.data), std::end(rhs.data));
 		}

@@ -198,7 +198,7 @@ namespace Ubpa {
 	template<typename Slot>
 	Connection Signal<Ret(Args...)>::Connect(Slot&& slot) {
 		static_assert(!std::is_pointer_v<Slot>);
-		Connection connection{ nullptr, reinterpret_cast<FuncSig*>(inner_id++)};
+		Connection connection{ nullptr, reinterpret_cast<FuncSig*>(innerID++)};
 		ConnectImpl(connection, std::forward<Slot>(slot));
 		return connection;
 	}
@@ -244,6 +244,7 @@ namespace Ubpa {
 			static_assert(!std::is_const_v<T> || std::is_const_v<UnrefObject>);
 			instance = static_cast<std::remove_const_t<UnrefObject>*>(const_cast<std::remove_const_t<T>*>(obj));
 		}
+		assert(instance);
 
 		Connection connection{ instance, memslot };
 		ConnectImpl(connection, details::SlotExpand<Ret(Args...)>::template mem_get<memslot>());
@@ -274,8 +275,9 @@ namespace Ubpa {
 				funcptr = memslot;
 			}
 			else
-				funcptr = reinterpret_cast<FuncSig*>(inner_id++);
+				funcptr = reinterpret_cast<FuncSig*>(innerID++);
 		}
+		assert(instance);
 
 		Connection connection{ instance, funcptr };
 		ConnectImpl(connection, details::SlotExpand<Ret(Args...)>::template mem_get(std::forward<MemSlot>(memslot)));
@@ -309,19 +311,30 @@ namespace Ubpa {
 
 	template<typename Ret, typename... Args>
 	void Signal<Ret(Args...)>::Emit(Args... args) {
-		for (auto& [c, slot] : slots)
+		assert(!isEmitting);
+		isEmitting = true;
+		for (auto& [c, slot] : slots) {
+			assert(slot);
 			slot(reinterpret_cast<void*>(c.instance), std::forward<Args>(args)...);
+		}
+		isEmitting = false;
 	}
 
 	template<typename Ret, typename... Args>
 	template<typename Acc> requires std::negation_v<std::is_void<Ret>>
 	void Signal<Ret(Args...)>::Emit(Acc&& acc, Args... args) {
-		for (auto& [c, slot] : slots)
+		assert(!isEmitting);
+		isEmitting = true;
+		for (auto& [c, slot] : slots) {
+			assert(slot);
 			acc(slot(reinterpret_cast<void*>(c.instance), std::forward<Args>(args)...));
+		}
+		isEmitting = false;
 	}
 
 	template<typename Ret, typename... Args>
 	void Signal<Ret(Args...)>::Disconnect(const Connection& connection) {
+		assert(!isEmitting);
 		slots.erase(connection);
 	}
 
@@ -361,12 +374,14 @@ namespace Ubpa {
 
 	template<typename Ret, typename... Args>
 	void Signal<Ret(Args...)>::Clear() noexcept {
+		assert(!isEmitting);
 		slots.clear();
 	}
 
 	template<typename Ret, typename... Args>
 	template<typename T>
 	void Signal<Ret(Args...)>::MoveInstance(T* dst, const T* src) {
+		assert(!isEmitting);
 		const auto iter_begin = slots.lower_bound(src);
 		const auto iter_end = slots.end();
 		auto cursor = iter_begin;

@@ -138,15 +138,15 @@ namespace Ubpa {
 		void Clear() noexcept;
 
 		void Swap(Signal& other) noexcept {
-			std::swap(inner_id, other.inner_id);
+			std::swap(innerID, other.innerID);
 			std::swap(slots, other.slots);
 		}
 
 	private:
-		size_t inner_id{ 0 };
+		size_t innerID{ 0 };
 		template<typename Slot>
 		void ConnectImpl(const Connection& connection, Slot&& slot);
-
+		bool isEmitting{ false };
 		small_flat_map<Connection, unique_function<FuncSig>, 16, std::less<>> slots;
 	};
 }

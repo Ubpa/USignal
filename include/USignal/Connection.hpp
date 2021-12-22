@@ -38,6 +38,8 @@ namespace Ubpa {
 
 		void Release();
 
+		void Reset() noexcept;
+
 		ScopedConnection(const ScopedConnection&) = delete;
 		ScopedConnection& operator=(const ScopedConnection&) = delete;
 	};
